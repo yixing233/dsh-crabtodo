@@ -358,6 +358,57 @@ try {
   check('non-boolean pinned rejected', pinThrew)
   ctxP._dispose()
 
+  // ── manual order ────────────────────────────────────────────────────────
+  console.log('manual order')
+  const orderFile = join(dir, 'order.json')
+  const ctxO = fakeCtx()
+  plugin.apply(ctxO, { dataFile: orderFile, exposeTools: true, exposeHttp: false })
+  const oAdd = ctxO._tools.get('crabtodo_add')
+  const oList = ctxO._tools.get('crabtodo_list')
+  const oUpdate = ctxO._tools.get('crabtodo_update')
+
+  const a1 = await oAdd.execute({ title: '甲', priority: 'normal' }, {})
+  const a2 = await oAdd.execute({ title: '乙', priority: 'urgent' }, {})
+  const a3 = await oAdd.execute({ title: '丙', priority: 'high' }, {})
+  const ladder = await oList.execute({}, {})
+  check('ladder puts urgent first', ladder.tasks[0].id === a2.id, ladder.tasks.map((t) => t.title).join(','))
+
+  await oUpdate.execute({ id: a1.id, order: 0 }, {})
+  await oUpdate.execute({ id: a3.id, order: 1 }, {})
+  await oUpdate.execute({ id: a2.id, order: 2 }, {})
+  const arranged = await oList.execute({}, {})
+  check(
+    'manual order beats the ladder',
+    arranged.tasks.map((t) => t.title).join('') === '甲丙乙',
+    arranged.tasks.map((t) => t.title).join(''),
+  )
+  const orderOnDisk = JSON.parse(await readFile(orderFile, 'utf8'))
+  check('order persists to disk', orderOnDisk.tasks.every((t) => Number.isFinite(t.order)))
+
+  await oUpdate.execute({ id: a3.id, pinned: true }, {})
+  const pinTop = await oList.execute({}, {})
+  check('pinning still outranks manual order', pinTop.tasks[0].id === a3.id, pinTop.tasks.map((t) => t.title).join(''))
+  await oUpdate.execute({ id: a3.id, pinned: false }, {})
+
+  // The tool schema takes numbers only; clearing order (null) is the
+  // service's job — the same path the page's PATCH uses.
+  await ctxO._provided.get('crabtodo').update(a1.id, { order: null })
+  const orderCleared = await oList.execute({}, {})
+  check(
+    'unordered rows sort after arranged ones',
+    orderCleared.tasks[orderCleared.tasks.length - 1].id === a1.id,
+    orderCleared.tasks.map((t) => t.title).join(','),
+  )
+
+  let orderThrew = false
+  try {
+    await oUpdate.execute({ id: a2.id, order: 'top' }, {})
+  } catch (error) {
+    orderThrew = /order/.test(String(error.message))
+  }
+  check('non-number order rejected', orderThrew)
+  ctxO._dispose()
+
   // ── error paths ──────────────────────────────────────────────────────────
   console.log('errors')
   let threw = false
@@ -428,6 +479,7 @@ try {
   const legacyList = await ctx4._tools.get('crabtodo_list').execute({}, {})
   check('legacy rows read as not deleted', legacyList.count === 1 && legacyList.tasks[0].deletedAt === null)
   check('legacy rows read as unpinned', legacyList.tasks[0].pinned === false, String(legacyList.tasks[0].pinned))
+  check('legacy rows read as unordered', legacyList.tasks[0].order === null, String(legacyList.tasks[0].order))
   const legacyBin = await ctx4._tools.get('crabtodo_list').execute({ deleted: 'only' }, {})
   check('legacy rows stay out of the trash', legacyBin.count === 0)
   ctx4._dispose()
