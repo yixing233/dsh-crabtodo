@@ -1,0 +1,20 @@
+# CrabTodo profile patch layer.
+#
+# One loader entry mounts the package's host half. The browser half (a sidebar
+# panel) is picked up automatically by dsh-client-modules from this package's
+# `dsh.client` declaration — the loader row must use the BARE package name,
+# because a subpath specifier never receives a client half.
+- insert:
+    - id: crabtodo
+      name: dsh-crabtodo
+      config:
+        # Where the JSON store lives. `~` expands against the OS home.
+        dataFile: ~/.dsh/storage/crabtodo/todos.json
+        # Expose the `crabtodo_*` tools to the model.
+        exposeTools: true
+        # Serve the sidebar page's REST API + event stream under /crabtodo.
+        exposeHttp: true
+        # Fallback project key for compositions with no session workspace root
+        # (headless / SDK runs). Empty means: use the session cwd, else global.
+        # Set this to keep those tasks project-scoped instead of global.
+        projectKey: ''
