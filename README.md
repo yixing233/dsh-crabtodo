@@ -10,12 +10,12 @@ CrabTodo — DeepSeek Harness 的**持久化**待办插件：模型可增删改�
 
 | 工具 | 用途 |
 |---|---|
-| `crabtodo_add` | 新增任务（标题、备注、状态、优先级、标签、**范围**） |
-| `crabtodo_list` | 查询，可按**范围** / 状态 / 标签 / 关键词过滤；未完成优先，再按优先级和创建时间排序 |
-| `crabtodo_update` | 改任意字段（含在项目/全局之间移动）；改成 `done` 会自动盖 `completedAt` |
+| `crabtodo_add` | 新增任务（标题、备注、状态、优先级、标签、**范围**、**置顶**） |
+| `crabtodo_list` | 查询，可按**范围** / 状态 / 标签 / 关键词过滤；**置顶**优先，然后按状态、优先级和创建时间排序 |
+| `crabtodo_update` | 改任意字段（含在项目/全局之间移动、`pinned` 置顶/取消置顶）；改成 `done` 会自动盖 `completedAt` |
 | `crabtodo_done` | 一键完成 |
-| `crabtodo_remove` | 删除单个任务 |
-| `crabtodo_clear` | 一次清掉所有已完成任务，未完成的不动 |
+| `crabtodo_remove` | 删除单个任务（软删除进回收站，可恢复） |
+| `crabtodo_clear` | 一次清掉所有已完成任务（永久），未完成的不动 |
 
 ### 两级范围：项目 / 全局
 
@@ -30,7 +30,7 @@ CrabTodo — DeepSeek Harness 的**持久化**待办插件：模型可增删改�
 
 项目键取的是会话的**工作区根目录**（session header 里的 `cwd`）。headless / SDK 这类没有工作区根的组合下，用配置项 `projectKey` 兜底，避免所有任务都退化成全局。
 
-页面上方有 `项目 / 全局 / 全部` 三个标签：前两个是真实范围，`全部` 只是把两者放在一起看的视图。新建卡片会显示当前会落到哪个范围。
+页面上方有 `项目 / 全局 / 全部` 三个标签：`项目` 只显示**当前会话所在项目**的待办（其他工作区的任务不会串进来），`全局` 是跨项目共享的，`全部` 则**不论项目**、所有任务一起看。新建卡片会显示当前会落到哪个范围。
 
 **给你的侧栏页面**
 
@@ -42,21 +42,37 @@ CrabTodo **不占用主页面**，也**不在左侧栏加入口**——它只是
 页面支持：
 
 - 底部卡片新建任务（回车确认），展开可填备注/优先级/状态/标签，**展开方向朝上**
-- 每行悬停出现四个动作：编辑、**添加到对话**、标记进行中、删除
+- 每行悬停出现的动作：编辑、**置顶**（📌，置顶项恒排最前，行内常显标记）、**添加到对话**、标记进行中、删除（**二次确认**后软删除，提示条里可一键**撤销**）
 - 状态筛选用官方 `SegmentedTabs`（下划线标签页，等宽 + 滑动指示器 + 方向键导航），带图标
+- 状态标签下方是**搜索框**：标题 / 备注 / 标签关键词即时过滤（与模型侧 `crabtodo_list` 的 `query` 同一套匹配规则，页面本地过滤，不发请求）；`Esc` 或 `×` 清除
 - 范围切换（项目 / 全局 / 全部）
 - 「清理已完成」批量整理
-- 任务带优先级色标与 `#标签`
+- 侧栏 tab 的 chip 标题旁带**未完成数徽章**（走宿主的 `sidebar.right.pane.tab.title` 活插槽，随任务变化实时刷新）——侧栏收起或多 tab 并排时也看得出还有多少活
+- 右上角垃圾桶图标进入**回收站**：删除的任务先落到这里，可逐条**恢复**或**彻底删除**，也可一键「清空回收站」。撤销窗口之外的误删也能从这里找回；「彻底删除」与「清空回收站」等不可逆操作均为**二次确认**（红色警示，4 秒无操作自动解除）。回收站页面隐藏状态筛选 tab（已删任务与状态无关），顶栏常驻「**回到首页**」文本按钮一键返回列表
+- 每行信息分层：标题加粗领衔，备注默认截断两行；底部元信息是一行 10px 的排印式灰字（范围 · 优先级 · `#标签`，分组圆点分隔，优先级保留语义色文字）
+- 界面文案跟随宿主语言（`html[lang]`，回退 `navigator.language`）：中文环境出中文，其余出英文——状态/优先级标签、按钮、提示、空态、「添加到对话」的引用格式全部双语，无硬编码
+- 备注支持 **Markdown**：点击备注展开详情，清单/链接/加粗/斜体/行内代码渲染成排版后的元素（点标题仍是进编辑器）。渲染走白名单解析、**全程不经过 HTML 字符串**——备注里写任何标签都只会显示为文本，链接仅放行 `http(s)`，天然免疫 XSS；编辑器里始终是原始 Markdown 文本
 
 页面通过同源 SSE 订阅变更：**模型在会话里用工具改了任务，页面会自动刷新**，反过来你在页面上勾选，下一个工具调用读到的也是最新状态。
 
 ### 添加到对话
 
-每条任务悬停后的第二个按钮（纸飞机图标）会把这条待办**写进当前会话的输入框**：
+每条任务悬停后的第二个按钮（聊天气泡图标）会把这条待办**写进当前会话的输入框**：
 
-- 带上备注、优先级和标签，不只是一个光秃秃的标题
+- 引用采用**显式字段**格式：任务、描述、状态/优先级/范围/标签、任务ID、来源，不只是一个光秃秃的标题
+- 块首标明这段来自 **dsh-crabtodo 插件**，并列出可用的 `crabtodo_*` 工具——模型读到后知道该按任务ID 调工具查询和操作这些任务，而不是把它当成来历不明的清单
 - 输入框已有内容时**追加**，不会覆盖你正在写的东西
 - 写入后弹一行确认；没有绑定会话时给出明确错误，而不是默默地什么也没发生
+
+写入输入框的实际格式：
+
+```text
+引用待办（来自 dsh-crabtodo 插件的持久化任务列表；可直接调用 crabtodo_list / crabtodo_update / crabtodo_done / crabtodo_remove 工具，按下方任务ID 查询或操作这些任务）：
+- 任务: 写文档
+  描述: 补齐 HTTP API 一节
+  状态: 待办 · 优先级: 高 · 范围: 项目 my-app · 标签: #docs
+  任务ID: ct_37d34ac7 · 来源: dsh-crabtodo 插件
+```
 
 它走的是 `inputActions.setDraft()` 这个公开写稿编口（与编辑器自己的草稿恢复同一条路径），不碰任何私有状态。侧栏 tab 是 session 作用域的，所以这些 props 天然就在。
 
@@ -113,9 +129,10 @@ dsh plugin --profile web remove dsh-crabtodo
 |---|---|---|
 | `GET` | `/crabtodo/api/tasks` | 整份快照 |
 | `POST` | `/crabtodo/api/tasks` | 新增，body 同 `crabtodo_add` 参数 |
-| `PATCH` | `/crabtodo/api/tasks/<id>` | 局部更新 |
-| `DELETE` | `/crabtodo/api/tasks/<id>` | 删除 |
-| `POST` | `/crabtodo/api/clear-completed` | 清除已完成 |
+| `PATCH` | `/crabtodo/api/tasks/<id>` | 局部更新；`{"deleted": false}` 恢复回收站任务 |
+| `DELETE` | `/crabtodo/api/tasks/<id>` | 删除（软删除进回收站）；`?purge=1` 彻底删除 |
+| `POST` | `/crabtodo/api/clear-completed` | 清除已完成（永久） |
+| `POST` | `/crabtodo/api/purge-deleted` | 清空回收站（永久） |
 | `GET` | `/crabtodo/api/events` | SSE，每次提交后发一条 `change` |
 
 ## 数据格式
@@ -137,6 +154,8 @@ dsh plugin --profile web remove dsh-crabtodo
       "createdAt": 1792468905576,
       "updatedAt": 1792468905576,
       "completedAt": null,
+      "deletedAt": null,
+      "pinned": false,
       "source": "model"
     }
   ]
@@ -144,7 +163,7 @@ dsh plugin --profile web remove dsh-crabtodo
 ```
 
 `status`：`pending` / `in_progress` / `done`；`priority`：`low` / `normal` / `high` / `urgent`；
-`scope`：`project` / `global`（全局任务 `project` 为 `null`）。
+`scope`：`project` / `global`（全局任务 `project` 为 `null`）；`deletedAt`：软删除时间戳，非 `null` 表示任务在回收站中（可恢复或彻底删除）；`pinned`：置顶标记，置顶项永远排在列表最前。
 
 旧版数据（没有 `scope` 字段）会被当作 `global` 读取，不会因为升级而把已有清单藏在项目筛选后面。
 

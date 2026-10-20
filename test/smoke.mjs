@@ -280,6 +280,84 @@ try {
   )
   check('no done row survived clear', remaining.tasks.every((task) => task.status !== 'done'))
 
+  // ── trash / soft delete ─────────────────────────────────────────────────
+  console.log('trash')
+  const victim = await add.execute({ title: '误删的任务' }, {})
+  const trashed = await remove.execute({ id: victim.id }, {})
+  check('remove soft-deletes', typeof trashed.deletedAt === 'number', String(trashed.deletedAt))
+  const afterRemove = await list.execute({}, {})
+  check('trashed row leaves the default list', !afterRemove.tasks.some((t) => t.id === victim.id))
+  const bin = await list.execute({ deleted: 'only' }, {})
+  check('deleted:only lists just the trash', bin.count === 1 && bin.tasks[0].id === victim.id, String(bin.count))
+  check('trash rows carry their stamp', typeof bin.tasks[0].deletedAt === 'number')
+  const both = await list.execute({ deleted: 'include' }, {})
+  check(
+    'deleted:include shows live and trashed',
+    both.count === afterRemove.count + 1,
+    `${both.count} vs ${afterRemove.count}`,
+  )
+
+  // A mis-deleted task comes back with its fields intact.
+  await update.execute({ id: victim.id, deleted: false }, {})
+  const restored = await list.execute({}, {})
+  check('update deleted:false restores the row', restored.tasks.some((t) => t.id === victim.id))
+  check(
+    'restore clears the stamp',
+    restored.tasks.find((t) => t.id === victim.id).deletedAt === null,
+    String(restored.tasks.find((t) => t.id === victim.id).deletedAt),
+  )
+
+  // The tool-level delete is itself undoable; permanence is an explicit purge
+  // through the service — the same operation the HTTP ?purge=1 route calls.
+  await remove.execute({ id: victim.id }, {})
+  const service = ctx._provided.get('crabtodo')
+  const purged = await service.purge(victim.id)
+  check('purge drops the row permanently', purged.id === victim.id)
+  const emptyBin = await list.execute({ deleted: 'only' }, {})
+  check('purge emptied the trash', emptyBin.count === 0)
+  const afterRoundTrip = await list.execute({}, {})
+  check(
+    'visible list unchanged by the trash round-trip',
+    afterRoundTrip.count === remaining.count,
+    `${afterRoundTrip.count} vs ${remaining.count}`,
+  )
+  check('purgeDeleted is on the service', typeof service.purgeDeleted === 'function')
+
+  // ── pinning ──────────────────────────────────────────────────────────────
+  console.log('pinning')
+  const pinFile = join(dir, 'pin.json')
+  const ctxP = fakeCtx()
+  plugin.apply(ctxP, { dataFile: pinFile, exposeTools: true, exposeHttp: false })
+  const pAdd = ctxP._tools.get('crabtodo_add')
+  const pList = ctxP._tools.get('crabtodo_list')
+  const pUpdate = ctxP._tools.get('crabtodo_update')
+
+  const plain = await pAdd.execute({ title: '普通任务', priority: 'normal' }, {})
+  const urgent = await pAdd.execute({ title: '紧急任务', priority: 'urgent' }, {})
+  const byLadder = await pList.execute({}, {})
+  check('ladder sorts urgent first', byLadder.tasks[0].id === urgent.id, byLadder.tasks.map((t) => t.title).join(','))
+  check('new rows are not pinned', byLadder.tasks.every((t) => t.pinned === false))
+
+  await pUpdate.execute({ id: plain.id, pinned: true }, {})
+  const pinnedList = await pList.execute({}, {})
+  check('pinned row sorts first', pinnedList.tasks[0].id === plain.id, pinnedList.tasks.map((t) => t.title).join(','))
+  check('pinned outranks an urgent row', pinnedList.tasks[0].priority === 'normal', pinnedList.tasks[0].priority)
+  const pinOnDisk = JSON.parse(await readFile(pinFile, 'utf8'))
+  check('pin persists to disk', pinOnDisk.tasks.find((t) => t.id === plain.id).pinned === true)
+
+  await pUpdate.execute({ id: plain.id, pinned: false }, {})
+  const unpinnedList = await pList.execute({}, {})
+  check('unpin restores the ladder', unpinnedList.tasks[0].id === urgent.id, unpinnedList.tasks.map((t) => t.title).join(','))
+
+  let pinThrew = false
+  try {
+    await pUpdate.execute({ id: plain.id, pinned: 'yes' }, {})
+  } catch (error) {
+    pinThrew = /pinned/.test(String(error.message))
+  }
+  check('non-boolean pinned rejected', pinThrew)
+  ctxP._dispose()
+
   // ── error paths ──────────────────────────────────────────────────────────
   console.log('errors')
   let threw = false
@@ -317,6 +395,42 @@ try {
   check('corrupt store degrades to empty, not a crash', empty.count === 0)
   const healed = await ctx2._tools.get('crabtodo_add').execute({ title: '恢复后新增' }, {})
   check('store heals and accepts writes', typeof healed.id === 'string')
+
+  // Rows written before soft delete existed carry no deletedAt field; they
+  // must read as live tasks, never as trashed ones.
+  const legacyFile = join(dir, 'legacy.json')
+  await writeFile(
+    legacyFile,
+    JSON.stringify({
+      version: 1,
+      updatedAt: 1,
+      tasks: [
+        {
+          id: 'ct_legacy0',
+          title: '旧数据',
+          notes: '',
+          status: 'pending',
+          priority: 'normal',
+          scope: 'global',
+          project: null,
+          tags: [],
+          createdAt: 1,
+          updatedAt: 1,
+          completedAt: null,
+          source: 'user',
+        },
+      ],
+    }),
+    'utf8',
+  )
+  const ctx4 = fakeCtx()
+  plugin.apply(ctx4, { dataFile: legacyFile, exposeTools: true, exposeHttp: false })
+  const legacyList = await ctx4._tools.get('crabtodo_list').execute({}, {})
+  check('legacy rows read as not deleted', legacyList.count === 1 && legacyList.tasks[0].deletedAt === null)
+  check('legacy rows read as unpinned', legacyList.tasks[0].pinned === false, String(legacyList.tasks[0].pinned))
+  const legacyBin = await ctx4._tools.get('crabtodo_list').execute({ deleted: 'only' }, {})
+  check('legacy rows stay out of the trash', legacyBin.count === 0)
+  ctx4._dispose()
 
   // ── restart durability ───────────────────────────────────────────────────
   console.log('restart')
