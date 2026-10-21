@@ -409,6 +409,59 @@ try {
   check('non-number order rejected', orderThrew)
   ctxO._dispose()
 
+  // ── preferences ────────────────────────────────────────────────────────
+  console.log('preferences')
+  // Prefs live NEXT TO the store (prefs.json) — host-side so they survive
+  // the UI origin drifting with dsh's startup port.
+  const prefsService = ctx._provided.get('crabtodo')
+  await prefsService.setPrefs({ accent: 'blue', fontSize: 'large' })
+  const prefsBack = await prefsService.getPrefs()
+  check('prefs round-trip', prefsBack.accent === 'blue' && prefsBack.fontSize === 'large', JSON.stringify(prefsBack))
+  const prefsOnDisk = JSON.parse(await readFile(join(dir, 'prefs.json'), 'utf8'))
+  check('prefs file sits beside the store', prefsOnDisk.accent === 'blue')
+  await prefsService.setPrefs(null)
+  const clearedPrefs = await prefsService.getPrefs()
+  check('non-object prefs degrade to empty', Object.keys(clearedPrefs).length === 0, JSON.stringify(clearedPrefs))
+
+  // ── cross-process freshness ─────────────────────────────────────────────
+  console.log('cross-process')
+  // Another mount of the plugin (a CLI session) writes the SAME file behind
+  // this store's back. A long-running process must see it without a restart.
+  const xpFile = join(dir, 'xproc.json')
+  const ctxX = fakeCtx()
+  plugin.apply(ctxX, { dataFile: xpFile, exposeTools: true, exposeHttp: false })
+  await ctxX._tools.get('crabtodo_add').execute({ title: '进程甲写的' }, {})
+  const xpRaw = JSON.parse(await readFile(xpFile, 'utf8'))
+  xpRaw.tasks.push({
+    id: 'ct_ext0000',
+    title: '进程乙写的',
+    notes: '',
+    status: 'pending',
+    priority: 'normal',
+    scope: 'global',
+    project: null,
+    tags: [],
+    createdAt: 1,
+    updatedAt: 1,
+    completedAt: null,
+    deletedAt: null,
+    pinned: false,
+    order: null,
+    source: 'model',
+  })
+  await writeFile(xpFile, JSON.stringify(xpRaw, null, 2), 'utf8')
+  const xpSeen = await ctxX._tools.get('crabtodo_list').execute({}, {})
+  check(
+    'external write visible without restart',
+    xpSeen.tasks.some((t) => t.title === '进程乙写的'),
+    xpSeen.tasks.map((t) => t.title).join(','),
+  )
+  // our own write then wins again — and the mirror stays coherent
+  await ctxX._tools.get('crabtodo_add').execute({ title: '进程甲又写的' }, {})
+  const xpFinal = JSON.parse(await readFile(xpFile, 'utf8'))
+  check('both writers survive on disk', xpFinal.tasks.length === 3, String(xpFinal.tasks.length))
+  ctxX._dispose()
+
   // ── error paths ──────────────────────────────────────────────────────────
   console.log('errors')
   let threw = false
