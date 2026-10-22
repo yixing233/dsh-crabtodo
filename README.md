@@ -2,9 +2,9 @@
 
 CrabTodo — DeepSeek Harness 的**持久化**待办插件：模型可增删改查的 todo 工具，外加一个 Web 侧边栏任务页面。
 
-![悬浮窗模式：全局浮窗，可拖动/折叠，磨砂玻璃](assets/screenshot-floating.png)
+![悬浮窗模式：全局浮窗，可拖动/折叠，磨砂玻璃](https://raw.githubusercontent.com/yixing233/dsh-crabtodo/main/assets/screenshot-floating.png)
 
-![侧栏面板：列表、搜索、新建任务卡片](assets/screenshot-panel.png)
+![侧栏面板：列表、搜索、新建任务卡片](https://raw.githubusercontent.com/yixing233/dsh-crabtodo/main/assets/screenshot-panel.png)
 
 与内置的 `todo_write` 互补：内置那份是**会话级**的（每轮开始清空、只属于当前对话），CrabTodo 把任务写进 `$DSH_HOME` 下的 JSON 文件，**跨会话、跨工作区、跨重启**都在。
 
