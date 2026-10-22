@@ -15,7 +15,8 @@
     "lib/client.js",
     "cordis.patch.yml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "skills"
   ],
   "keywords": [
     "deepseek-harness",

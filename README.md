@@ -2,6 +2,10 @@
 
 CrabTodo — DeepSeek Harness 的**持久化**待办插件：模型可增删改查的 todo 工具，外加一个 Web 侧边栏任务页面。
 
+![悬浮窗模式：全局浮窗，可拖动/折叠，磨砂玻璃](assets/screenshot-floating.png)
+
+![侧栏面板：列表、搜索、新建任务卡片](assets/screenshot-panel.png)
+
 与内置的 `todo_write` 互补：内置那份是**会话级**的（每轮开始清空、只属于当前对话），CrabTodo 把任务写进 `$DSH_HOME` 下的 JSON 文件，**跨会话、跨工作区、跨重启**都在。
 
 ## 能做什么
@@ -195,6 +199,16 @@ dsh --profile <your-profile> "Call crabtodo_add once with title 'probe'. Then ca
 ```
 
 判读结果的两条硬证据：终端里出现真实工具往返（不是模型凭空作答），且落盘数据里该任务的 `source` 为 `"model"`。
+
+## 悬浮模式
+
+顶栏的浮窗按钮把面板**从侧栏取出**为一个可拖动、可调大小的磨砂玻璃悬浮窗（列表在其下滚动、内容透出），侧栏原位留一张「已移至悬浮窗」的卡片可一键召回；窗口位置记忆在 dsh 存储中，重启后仍在原处。
+
+悬浮窗挂在宿主的**全局悬浮层**（`shell.overlay`，root 作用域）上——它是**应用级窗口而非会话级**：切换会话不消失，始终显示任务全貌并按当前会话解析项目归属。标题栏可**折叠/展开**（折叠后只剩标题条，仍可拖动，状态记住）。悬浮窗内**「添加到对话」同样可用**——通过宿主的会话机制（`uiSession.bindingSource`）解析当前会话的输入框，写入你在看的那个对话的草稿。
+
+## 技能（Skill）
+
+`skills/crabtodo/SKILL.md` 随包分发：DSH 会自动扫描插件包内的技能并列入模型的技能清单，模型看到与用户口令同名的 `crabtodo` 技能即可零摸索直达 `crabtodo_*` 工具（而不是去翻文件系统找"crabtodo"是什么）。
 
 ## License
 
