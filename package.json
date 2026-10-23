@@ -1,6 +1,6 @@
 {
   "name": "dsh-crabtodo",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CrabTodo — a persistent todo manager for DeepSeek Harness: model-facing todo tools backed by a JSON store under $DSH_HOME, plus a full sidebar page in the Web UI. 持久化待办插件：模型可增删改查的 todo 工具 + Web 侧边栏任务页面。",
   "license": "MIT",
   "type": "module",
