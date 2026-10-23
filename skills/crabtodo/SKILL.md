@@ -23,6 +23,10 @@ CrabTodo 是 dsh-crabtodo 插件的持久化待办清单：任务存在 \`$DSH_H
 
 Every task has an id like \`ct_xxxxxxxx\`; mutations take that id (get ids from \`crabtodo_list\`).
 
+## Tags / 标签体系
+
+Tags are a managed vocabulary (\`crabtodo_tags\`: list / add / remove), not free text. When the user shares SEVERAL items at once, FIRST propose a tag system and let them adjust — e.g. by kind (功能新增 / 功能变更 / 功能修复 / UI / 逻辑) and by platform (服务器端 / Windows端 / 安卓端) — register the agreed names with \`crabtodo_tags\`, then tag every task consistently. Consistent tags are what makes filtering by tag (the page's tag chips and \`crabtodo_list\` query) actually useful. Tag words typed into tasks auto-join the vocabulary.
+
 ## Semantics worth knowing
 
 - **scope**: 'project' (tied to the session's workspace root — the default when one is open) or 'global' (shared across projects).

@@ -60,13 +60,14 @@ try {
   const ctx = fakeCtx()
   plugin.apply(ctx, { dataFile, exposeTools: true, exposeHttp: true })
   const names = [...ctx._tools.keys()].sort()
-  check('registers six tools', names.length === 6, names.join(','))
+  check('registers seven tools', names.length === 7, names.join(','))
   for (const expected of [
     'crabtodo_add',
     'crabtodo_clear',
     'crabtodo_done',
     'crabtodo_list',
     'crabtodo_remove',
+    'crabtodo_tags',
     'crabtodo_update',
   ]) {
     check(`tool ${expected} present`, ctx._tools.has(expected))
@@ -408,6 +409,42 @@ try {
   }
   check('non-number order rejected', orderThrew)
   ctxO._dispose()
+
+  // ── tag vocabulary ─────────────────────────────────────────────────────
+  console.log('tag vocabulary')
+  const tagService = ctx._provided.get('crabtodo')
+  const t0 = await tagService.addTag('功能修复')
+  const t1 = await tagService.addTag('功能修复')
+  const t2 = await tagService.addTag('  服务器端  ')
+  check('tags add/trim/dedupe', t0.length === 1 && t1.length === 1 && t2[1] === '服务器端', JSON.stringify(t2))
+  const tagList = await tagService.listTags()
+  check('tags list', tagList.length === 2 && tagList[0] === '功能修复', JSON.stringify(tagList))
+  const t3 = await tagService.removeTag('功能修复')
+  check('tags remove', t3.length === 1 && t3[0] === '服务器端', JSON.stringify(t3))
+  const storeOnDisk = JSON.parse(await readFile(join(dir, 'todos.json'), 'utf8'))
+  check(
+    'tags persist with store',
+    Array.isArray(storeOnDisk.tags) && storeOnDisk.tags.length === 1 && storeOnDisk.tags[0] === '服务器端',
+    JSON.stringify(storeOnDisk.tags),
+  )
+
+  // '#' query scopes to TAGS ONLY — the page's clickable tag chips depend
+  // on this exact rule (#feature must not match titles merely containing the
+  // word).
+  const taggedCreate = await addT.execute({ title: 'tag query probe', tags: ['feature', 'demo'] }, {})
+  const untaggedCreate = await addT.execute({ title: 'feature word in title only' }, {})
+  const taggedId = taggedCreate.id ?? taggedCreate.task?.id
+  const untaggedId = untaggedCreate.id ?? untaggedCreate.task?.id
+  const byHash = await list.execute({ query: '#feature' }, {})
+  const hashIds = byHash.tasks.map((t) => t.id)
+  check(
+    '#query matches tagged rows only',
+    hashIds.includes(taggedId) && !hashIds.includes(untaggedId),
+    JSON.stringify(hashIds),
+  )
+  // The probes leave: later sections assert exact row counts.
+  await tagService.purge(taggedId)
+  await tagService.purge(untaggedId)
 
   // ── preferences ────────────────────────────────────────────────────────
   console.log('preferences')
