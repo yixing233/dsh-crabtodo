@@ -2,7 +2,7 @@
 name: crabtodo
 description: CrabTodo is the persistent todo/task list for DeepSeek Harness (持久化待办清单), backed by the dsh-crabtodo plugin. Use this skill whenever the user asks to record, write, save, add, manage, review or update todos, tasks, a task list, a checklist, a backlog or work items — triggers include "写待办", "记任务", "写入待办", "记入待办", "待办清单", "任务列表", "加个任务", "把这些写成 todo", "add these as todos", "write these into crabtodo", "update my task list", "mark done", "完成一个任务". The crabtodo_* tools are the ONLY correct write path: never write todos into markdown files, documents or notes — a file is not a todo list the model can query, sort, complete or share with the sidebar UI. Prefer these tools over the session-only todo_write list whenever the work should outlive the conversation.
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
   date: "2026-10-21"
 ---
 
