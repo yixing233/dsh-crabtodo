@@ -80,6 +80,18 @@ CrabTodo **不占用主页面**，也**不在左侧栏加入口**——它只是
 
 它走的是 `inputActions.setDraft()` 这个公开写稿编口（与编辑器自己的草稿恢复同一条路径），不碰任何私有状态。侧栏 tab 是 session 作用域的，所以这些 props 天然就在。
 
+## DSH 版本要求
+
+`engines.dsh` 逐版本枚举（npm 的 semver 预发布规则下，`>=0.2.0-rc.1 <0.3.0-0` 这类范围写法会漏掉 `0.2.1-rc.x`，所以不用范围）：
+
+```
+0.1.7-rc.1 / 0.1.7-rc.2 / 0.2.0-rc.1 / 0.2.0-rc.2 / 0.2.1-rc.1 / 0.2.1-rc.2
+```
+
+Node `>=22`。这些版本上已验证的宿主能力：`shell.overlay` 根级席位、`sidebar.right.pane.tab`、
+`sidebarRightTabs` 注册表、`uiSession` 的 `provide/bindingSource`、`sessions.binding()`、
+`layout.panels.setRightbar`、`tools.register` + `defineTool`、`webServer` 路由。
+
 ## 安装
 
 ### 从 npm（发布后可用）

@@ -33,8 +33,8 @@
     "清单"
   ],
   "engines": {
-    "node": ">=18",
-    "dsh": ">=0.2.0-rc.1 <0.3.0-0"
+    "node": ">=22",
+    "dsh": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2"
   },
   "dsh": {
     "bundle": {
@@ -70,5 +70,15 @@
   "homepage": "https://github.com/yixing233/dsh-crabtodo#readme",
   "bugs": {
     "url": "https://github.com/yixing233/dsh-crabtodo/issues"
+  },
+  "compatibility": {
+    "dshReleases": {
+      "0.1.7-rc.1": "compatible",
+      "0.1.7-rc.2": "compatible",
+      "0.2.0-rc.1": "compatible",
+      "0.2.0-rc.2": "compatible",
+      "0.2.1-rc.1": "compatible",
+      "0.2.1-rc.2": "compatible"
+    }
   }
 }
